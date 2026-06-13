@@ -9,7 +9,7 @@
 A real-time TCP connection monitor for Linux with a **GTK3** desktop UI and
 a cyber-themed dark look.
 
-![Connection Monitor screenshot](screenshot.png)
+![Connection Monitor screenshot](screenshot_conn.png)
 
 `connmon` reads the kernel's connection tables straight from
 `/proc/net/tcp` and `/proc/net/tcp6` — the same source `netstat` and `ss`
