@@ -34,33 +34,26 @@
 /* ------------------------------------------------------------------ */
 
 /*
- * Map of socket inode -> owning process, rebuilt on every refresh by
- * walking /proc. Stored as a flat dynamic array; connection counts are
- * small enough that a linear lookup is fine.
+ * Map of socket inode -> owning process ("name/pid"), rebuilt on every
+ * refresh by walking /proc. A hash table keeps lookups O(1), which matters
+ * on busy hosts with thousands of sockets and file descriptors.
+ *
+ * The inode is used directly as the key (GSIZE_TO_POINTER); socket inodes
+ * comfortably fit in a pointer on any realistic system.
  */
-struct proc_ent {
-    unsigned long inode;
-    int pid;
-    char name[64];
-};
-
-static struct proc_ent *proc_map = NULL;
-static size_t proc_len = 0, proc_cap = 0;
+static GHashTable *proc_map = NULL; /* inode -> g_strdup'd "name/pid" */
 
 static void proc_map_add(unsigned long inode, int pid, const char *name)
 {
-    if (proc_len == proc_cap) {
-        proc_cap = proc_cap ? proc_cap * 2 : 64;
-        proc_map = realloc(proc_map, proc_cap * sizeof(*proc_map));
-        if (!proc_map) {
-            perror("realloc");
-            exit(1);
-        }
-    }
-    proc_map[proc_len].inode = inode;
-    proc_map[proc_len].pid = pid;
-    snprintf(proc_map[proc_len].name, sizeof(proc_map[proc_len].name), "%s", name);
-    proc_len++;
+    if (inode == 0)
+        return; /* no real socket has inode 0; avoids bogus matches */
+
+    gpointer key = GSIZE_TO_POINTER(inode);
+    /* First owner wins: deterministic attribution for sockets shared
+     * across processes (fork/dup) regardless of /proc iteration order. */
+    if (g_hash_table_contains(proc_map, key))
+        return;
+    g_hash_table_insert(proc_map, key, g_strdup_printf("%s/%d", name, pid));
 }
 
 /* Read the command name for a pid from /proc/<pid>/comm. */
@@ -84,7 +77,11 @@ static void read_comm(int pid, char *out, size_t outlen)
 /* Walk /proc/<pid>/fd, recording the inode of every socket: link. */
 static void build_proc_map(void)
 {
-    proc_len = 0; /* reuse the allocation across refreshes */
+    if (!proc_map)
+        proc_map = g_hash_table_new_full(g_direct_hash, g_direct_equal,
+                                         NULL, g_free);
+    else
+        g_hash_table_remove_all(proc_map); /* drop last scan's entries */
 
     DIR *proc = opendir("/proc");
     if (!proc)
@@ -132,13 +129,10 @@ static void build_proc_map(void)
 /* Format "name/pid" for a socket inode, or "-" if unknown. */
 static void resolve_proc(unsigned long inode, char *out, size_t outlen)
 {
-    for (size_t i = 0; i < proc_len; i++) {
-        if (proc_map[i].inode == inode) {
-            snprintf(out, outlen, "%s/%d", proc_map[i].name, proc_map[i].pid);
-            return;
-        }
-    }
-    snprintf(out, outlen, "-");
+    const char *p = proc_map
+        ? g_hash_table_lookup(proc_map, GSIZE_TO_POINTER(inode))
+        : NULL;
+    snprintf(out, outlen, "%s", p ? p : "-");
 }
 
 /* TCP states as exposed by the kernel in /proc/net/tcp (hex). */
@@ -156,27 +150,36 @@ static const char *tcp_state_name(unsigned int st)
 }
 
 /*
- * /proc/net/tcp encodes IPv4 addresses as little-endian hex words.
- * Format an "addr:port" string into out.
+ * /proc/net/tcp prints the address with "%08X" over the in-kernel __be32,
+ * read as a host-order integer. The local kernel and this process share an
+ * endianness, so parsing the hex back into a host integer and reusing its
+ * raw bytes as s_addr reproduces the original network-order address on both
+ * little- and big-endian machines. Format an "addr:port" string into out.
  */
 static void fmt_ipv4(const char *hex_addr, unsigned int port, char *out, size_t outlen)
 {
     unsigned int a;
     struct in_addr in;
 
-    sscanf(hex_addr, "%x", &a);
-    in.s_addr = a; /* already host-byte-order little-endian -> network order on LE */
+    if (sscanf(hex_addr, "%x", &a) != 1) {
+        snprintf(out, outlen, "?:%u", port);
+        return;
+    }
+    in.s_addr = a;
     snprintf(out, outlen, "%s:%u", inet_ntoa(in), port);
 }
 
-/* IPv6 addresses are four little-endian hex words. */
+/* IPv6 addresses are four host-order hex words (see fmt_ipv4 on endianness). */
 static void fmt_ipv6(const char *hex_addr, unsigned int port, char *out, size_t outlen)
 {
     unsigned int w[4];
     struct in6_addr in6;
     char buf[INET6_ADDRSTRLEN];
 
-    sscanf(hex_addr, "%8x%8x%8x%8x", &w[0], &w[1], &w[2], &w[3]);
+    if (sscanf(hex_addr, "%8x%8x%8x%8x", &w[0], &w[1], &w[2], &w[3]) != 4) {
+        snprintf(out, outlen, "?:%u", port);
+        return;
+    }
     memcpy(&in6, w, sizeof(in6));
     inet_ntop(AF_INET6, &in6, buf, sizeof(buf));
     snprintf(out, outlen, "[%s]:%u", buf, port);
@@ -510,6 +513,7 @@ int main(int argc, char **argv)
     if (app.timer_id)
         g_source_remove(app.timer_id);
     g_object_unref(gapp);
-    free(proc_map);
+    if (proc_map)
+        g_hash_table_destroy(proc_map);
     return status;
 }
