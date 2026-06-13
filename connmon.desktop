@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Connection Monitor
+GenericName=Network Connection Monitor
+Comment=Real-time TCP connection monitor
+Exec=connmon
+Icon=connmon
+Terminal=false
+Categories=System;Monitor;Network;
+Keywords=network;tcp;connections;sockets;monitor;netstat;ss;
+StartupNotify=true
+StartupWMClass=connmon

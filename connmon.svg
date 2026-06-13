@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#0d1b2a"/>
+      <stop offset="100%" stop-color="#05080d"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00e5ff"/>
+      <stop offset="100%" stop-color="#39ff14"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- rounded panel -->
+  <rect x="6" y="6" width="116" height="116" rx="24" fill="url(#bg)"
+        stroke="url(#edge)" stroke-width="2.5"/>
+
+  <!-- faint grid -->
+  <g stroke="#10384a" stroke-width="1" opacity="0.6">
+    <line x1="6" y1="44" x2="122" y2="44"/>
+    <line x1="6" y1="84" x2="122" y2="84"/>
+    <line x1="44" y1="6" x2="44" y2="122"/>
+    <line x1="84" y1="6" x2="84" y2="122"/>
+  </g>
+
+  <!-- connection nodes + links -->
+  <g filter="url(#glow)">
+    <line x1="34" y1="40" x2="64" y2="64" stroke="#00e5ff" stroke-width="3"/>
+    <line x1="94" y1="36" x2="64" y2="64" stroke="#00e5ff" stroke-width="3"/>
+    <line x1="40" y1="92" x2="64" y2="64" stroke="#39ff14" stroke-width="3"/>
+    <line x1="92" y1="94" x2="64" y2="64" stroke="#39ff14" stroke-width="3"/>
+
+    <circle cx="64" cy="64" r="11" fill="#00e5ff"/>
+    <circle cx="34" cy="40" r="7" fill="#39ff14"/>
+    <circle cx="94" cy="36" r="7" fill="#39ff14"/>
+    <circle cx="40" cy="92" r="7" fill="#00e5ff"/>
+    <circle cx="92" cy="94" r="7" fill="#ff2e63"/>
+  </g>
+
+  <!-- pulse ring around hub -->
+  <circle cx="64" cy="64" r="20" fill="none" stroke="#00e5ff" stroke-width="1.5" opacity="0.5"/>
+</svg>
