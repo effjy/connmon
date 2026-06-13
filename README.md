@@ -3,7 +3,6 @@
 [![License](https://img.shields.io/badge/license-Public%20Domain-brightgreen.svg)](https://github.com/effjy/connmon/)
 [![Platform](https://img.shields.io/badge/platform-Linux-blue.svg)](https://github.com/effjy/connmon/)
 [![GTK](https://img.shields.io/badge/GTK-3-orange.svg)](https://www.gtk.org/)
-[![GitHub stars](https://img.shields.io/github/stars/effjy/connmon?style=social)](https://github.com/effjy/connmon/)
 [![GitHub issues](https://img.shields.io/github/issues/effjy/connmon.svg)](https://github.com/effjy/connmon/issues)
 [![GitHub last commit](https://img.shields.io/github/last-commit/effjy/connmon.svg)](https://github.com/effjy/connmon/commits)
 
