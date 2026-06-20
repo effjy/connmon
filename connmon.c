@@ -330,6 +330,75 @@ static void on_pause_toggled(GtkToggleButton *btn, gpointer data)
         refresh(app);
 }
 
+/* Write the current table contents to a plain-text file. */
+static void save_connections(App *app, const char *path)
+{
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
+            GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
+            "Could not write to %s", path);
+        gtk_dialog_run(GTK_DIALOG(err));
+        gtk_widget_destroy(err);
+        return;
+    }
+
+    time_t now = time(NULL);
+    char ts[64];
+    strftime(ts, sizeof(ts), "%Y-%m-%d %H:%M:%S", localtime(&now));
+    fprintf(f, "# %s connection list - %s\n", APP_NAME, ts);
+    fprintf(f, "%-6s  %-40s  %-40s  %-12s  %-6s  %s\n",
+            "PROTO", "LOCAL", "REMOTE", "STATE", "UID", "PROCESS");
+
+    GtkTreeModel *model = GTK_TREE_MODEL(app->store);
+    GtkTreeIter iter;
+    gboolean valid = gtk_tree_model_get_iter_first(model, &iter);
+    while (valid) {
+        gchar *proto, *local, *remote, *state, *proc;
+        guint uid;
+        gtk_tree_model_get(model, &iter,
+            COL_PROTO,   &proto,
+            COL_LOCAL,   &local,
+            COL_REMOTE,  &remote,
+            COL_STATE,   &state,
+            COL_UID,     &uid,
+            COL_PROCESS, &proc,
+            -1);
+        fprintf(f, "%-6s  %-40s  %-40s  %-12s  %-6u  %s\n",
+                proto, local, remote, state, uid, proc);
+        g_free(proto);
+        g_free(local);
+        g_free(remote);
+        g_free(state);
+        g_free(proc);
+        valid = gtk_tree_model_iter_next(model, &iter);
+    }
+
+    fclose(f);
+}
+
+static void on_save_clicked(GtkButton *btn, gpointer data)
+{
+    App *app = data;
+    (void)btn;
+
+    GtkWidget *dialog = gtk_file_chooser_dialog_new("Save Connections",
+        GTK_WINDOW(app->window), GTK_FILE_CHOOSER_ACTION_SAVE,
+        "_Cancel", GTK_RESPONSE_CANCEL,
+        "_Save",   GTK_RESPONSE_ACCEPT,
+        NULL);
+    GtkFileChooser *chooser = GTK_FILE_CHOOSER(dialog);
+    gtk_file_chooser_set_do_overwrite_confirmation(chooser, TRUE);
+    gtk_file_chooser_set_current_name(chooser, "connections.txt");
+
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char *filename = gtk_file_chooser_get_filename(chooser);
+        save_connections(app, filename);
+        g_free(filename);
+    }
+    gtk_widget_destroy(dialog);
+}
+
 static void on_about_clicked(GtkButton *btn, gpointer data)
 {
     App *app = data;
@@ -464,6 +533,10 @@ static void activate(GtkApplication *gapp, gpointer data)
     GtkWidget *refresh_btn = gtk_button_new_with_label("Refresh");
     g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), app);
     gtk_box_pack_end(GTK_BOX(header), refresh_btn, FALSE, FALSE, 0);
+
+    GtkWidget *save_btn = gtk_button_new_with_label("Save");
+    g_signal_connect(save_btn, "clicked", G_CALLBACK(on_save_clicked), app);
+    gtk_box_pack_end(GTK_BOX(header), save_btn, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(vbox), header, FALSE, FALSE, 0);
 
